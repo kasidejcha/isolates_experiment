@@ -1,13 +1,26 @@
+import 'dart:async';
 import 'dart:isolate';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:get_storage/get_storage.dart';
 
-void main() => runApp(MyApp());
+List item = [1,2,3,4];
+
+void main() {
+  WidgetsFlutterBinding.ensureInitialized(); 
+  GetStorage.init();
+  GetStorage().erase();
+  runApp(const MyApp());
+}
 
 class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return const MaterialApp(
       home: Scaffold(
         body: BodyWidget(),
       ),
@@ -15,9 +28,25 @@ class MyApp extends StatelessWidget {
   }
 }
 
-class BodyWidget extends StatelessWidget {
+
+
+class BodyWidget extends StatefulWidget {
+  const BodyWidget({super.key});
+
+  @override
+  State<BodyWidget> createState() => _BodyWidgetState();
+}
+
+class _BodyWidgetState extends State<BodyWidget> {
+  
+
   @override
   Widget build(BuildContext context) {
+
+    ReceivePort cacheReceivePort = ReceivePort();
+    ReceivePort cacheReceiveResponsePort = ReceivePort();
+    Isolate.spawn<List<SendPort>>(cacheIsolateEntry, [cacheReceivePort.sendPort, cacheReceiveResponsePort.sendPort]);
+
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -26,27 +55,28 @@ class BodyWidget extends StatelessWidget {
           ElevatedButton(
             child: const Text('start'),
             onPressed: () async {
-              // final sum = computationallyExpensiveTask_singleThread(1000000000);
-              // print(sum);
-
-              // //ReceivePort is to listen for the isolate to finish job
-              // final receivePort = ReceivePort();
-              // // here we are passing method name and sendPort instance from ReceivePort as listener
-              // await Isolate.spawn(
-              //     computationallyExpensiveTask, receivePort.sendPort);
-
-              // //It will listen for isolate function to finish
-              // receivePort.listen((sum) {
-              //   print(sum);
-              // });
-
-              // without using listen
-              final receivePort = ReceivePort();
-              await Isolate.spawn<SendPort>(
-                computationallyExpensiveTask, receivePort.sendPort
-              );
-              final response = await receivePort.first;
-              print("$response");
+              SendPort cacheSendPort = await cacheReceivePort.first;
+              cacheSendPort.send({
+                'action': 'get',
+                'key': 'helloworld_data',
+              });
+              cacheReceiveResponsePort.listen((message){
+                print("Message: $message");
+                if (message == null){
+                  cacheSendPort.send({
+                    'action': 'set',
+                    'key': 'helloworld_data',
+                    'value': ['Hello, world!', '01', '02'],
+                  });
+                }
+                Timer(const Duration(seconds: 3), () {
+                  print("3 seconds Delay");
+                  cacheSendPort.send({
+                    'action': 'get',
+                    'key': 'helloworld_data',
+                  });
+                });
+              });
             },
           )
         ],
@@ -55,23 +85,31 @@ class BodyWidget extends StatelessWidget {
   }
 }
 
-// this function should be either top level(outside class) or static method
-void computationallyExpensiveTask(SendPort sendPort) {
-  print('heavy work started');
-  var sum = 0;
-  for (var i = 0; i <= 1000000000; i++) {
-    sum += i;
-  }
-  print('heavy work finished');
-  //Remember there is no return, we are sending sum to listener defined defore.
-  sendPort.send(sum);
-}
+void cacheIsolateEntry(List<SendPort> listSendPort) async {
+  ReceivePort receivePort = ReceivePort();
+  listSendPort[0].send(receivePort.sendPort);
+  Map cacheData = {};
 
-int computationallyExpensiveTask_singleThread(int value) {
-  var sum = 0;
-  for (var i = 0; i <= value; i++) {
-    sum += i;
-  }
-  print('finished task');
-  return sum;
+  receivePort.listen((message) async{
+    if (message == 'stop') {
+      receivePort.close();
+      return;
+    }
+
+    String action = message['action'];
+    String key = message['key'];
+    var value = message['value'];
+
+    if (action == 'get') {
+      var data = cacheData[key];
+      // print('data: $data');
+      listSendPort[1].send(data);
+    } else if (action == 'set') {
+      var tmp = {
+        key:value
+      };
+      print('Setting Message');
+      cacheData.addAll(tmp);
+    }
+  });
 }
