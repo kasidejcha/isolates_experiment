@@ -66,13 +66,13 @@ class _BodyWidgetState extends State<BodyWidget> {
                   cacheSendPort.send({
                     'action': 'set',
                     'key': 'helloworld_data',
-                    'value': ['Hello, world!', '01', '02'],
+                    'value': [1,2,3,4],
                   });
                 }
                 Timer(const Duration(seconds: 3), () {
                   print("3 seconds Delay");
                   cacheSendPort.send({
-                    'action': 'get',
+                    'action': 'compute',
                     'key': 'helloworld_data',
                   });
                 });
@@ -96,14 +96,19 @@ void cacheIsolateEntry(List<SendPort> listSendPort) async {
       return;
     }
 
+    
     String action = message['action'];
     String key = message['key'];
     var value = message['value'];
 
     if (action == 'get') {
       var data = cacheData[key];
-      // print('data: $data');
       listSendPort[1].send(data);
+
+    } else if (action == 'compute'){
+      var output = cacheData[key][3]*10;
+      listSendPort[1].send(output);
+
     } else if (action == 'set') {
       var tmp = {
         key:value
