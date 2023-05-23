@@ -80,6 +80,7 @@ flutter:
     - assets/tsb_graph.json
     - assets/tsb_weighted_graph.json
     - assets/link_data.json
+    - assets/eta_link_data.json
   # fonts:
   #   - family: Schyler
   #     fonts:

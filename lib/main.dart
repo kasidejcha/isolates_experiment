@@ -46,6 +46,7 @@ class _BodyWidgetState extends State<BodyWidget> {
     ReceivePort cacheReceivePort = ReceivePort();
     ReceivePort cacheReceiveResponsePort = ReceivePort();
     Isolate.spawn<List<SendPort>>(cacheIsolateEntry, [cacheReceivePort.sendPort, cacheReceiveResponsePort.sendPort]);
+    
 
     return Center(
       child: Column(
@@ -55,6 +56,7 @@ class _BodyWidgetState extends State<BodyWidget> {
           ElevatedButton(
             child: const Text('start'),
             onPressed: () async {
+              String linkData = await rootBundle.loadString('assets/eta_link_data.json');
               SendPort cacheSendPort = await cacheReceivePort.first;
               cacheSendPort.send({
                 'action': 'get',
@@ -66,16 +68,17 @@ class _BodyWidgetState extends State<BodyWidget> {
                   cacheSendPort.send({
                     'action': 'set',
                     'key': 'helloworld_data',
-                    'value': [1,2,3,4],
+                    'value': linkData,
+                  });
+                  Timer(const Duration(seconds: 3), () {
+                    print("3 seconds Delay");
+                    cacheSendPort.send({
+                      'action': 'compute',
+                      'key': 'helloworld_data',
+                    });
                   });
                 }
-                Timer(const Duration(seconds: 3), () {
-                  print("3 seconds Delay");
-                  cacheSendPort.send({
-                    'action': 'compute',
-                    'key': 'helloworld_data',
-                  });
-                });
+
               });
             },
           )
@@ -106,8 +109,9 @@ void cacheIsolateEntry(List<SendPort> listSendPort) async {
       listSendPort[1].send(data);
 
     } else if (action == 'compute'){
-      var output = cacheData[key][3]*10;
-      listSendPort[1].send(output);
+      var output = cacheData[key];
+      var decoded = jsonDecode(output);
+      listSendPort[1].send(decoded[0]);
 
     } else if (action == 'set') {
       var tmp = {
